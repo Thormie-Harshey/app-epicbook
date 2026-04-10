@@ -1,7 +1,7 @@
 ---
 app_repo: "https://github.com/pravinmishraaws/theepicbook"
-app_dest: "/home/ubuntu/theepicbook"
-app_user: "ubuntu"
+app_dest: "/home/azureuser/theepicbook"
+app_user: "azureuser"
 
 nginx_site_name: "epicbook"
 
