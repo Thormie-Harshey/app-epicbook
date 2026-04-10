@@ -2,13 +2,10 @@ trigger:
 - main
 
 pool:
-  # Using your configured self-hosted agent
   name: 'epicbook-agent-pool' 
 
 variables:
-  # Link the secret group we created in Phase 1
   - group: ansible-secrets
-  # These are the "Hand-off" variables from your Terraform output
   - name: VM_IP
     value: '20.164.218.227'
   - name: DB_FQDN
@@ -22,48 +19,40 @@ jobs:
   # 1. Install SSH Key from Secure Files
   - task: InstallSSHKey@0
     inputs:
-      knownHostsEntry: 'ignore' # For labs/dev, or use SSH-keyscan for production
+      knownHostsEntry: 'ignore'
       sshPublicKey: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCwTn6fZ+p+kdEhQWACbLAHzWJ/zQ6NlS8Id5d9sH1uLUkC8ZxcfeKIzyHbBqIi99n6i0jHqwnnvVcH+fWwdkj/072gWhrqINJB85Mp2adRxDTeOjaMapYgONdexCUVDIwZkJcASCkp/lDI9Ox30LK5wzIlAS0MgXiP/dmvEss3ay5pCnvxzwXaqyR7m+L7JSt26bjfZoPNlfncWZCgXJTpSv9EIhbimGNrJGN01JYRN2wlzS64MhMHOtwM7qcK793gWyuatUaKCyVd4V6aqZCLrV/NQCd8DbMJav4dP6HXtSD/sg6DIW4q/T8kuoKaVIjN06y2Zv6SUGU/ftV0UFLdfe4yUNIIu4FX/ZZZ4wANDPn5qvI9DHI4CMCW2oslZwIulz9cBMhPmLWqnO9Ll5nhQUYBjMYK6hyCQAPpqLpBn0gRnfG7xCxJK85NFL7fHjP1NUYWYW8tpcGvJ43XNmskddIRhYYwE91g8rCd6t4Zai4SbbWqIQXAKPKP/w36n8CyNiJFxEDD/guPRK3CGbcz427h8rmbGRvlFVQOWJbzbXxMQ3GsVdUmaxshysVJcCl1yD4OQkweaCILSuHxpx3W2R/s0MXm/Su6N9lrVBJTbSVKlLakgXWILkPlyJBrGHgQ0OhjK0HyA1QlCtV5wOTTcFU813eEnroIiuxzdIPh6w== ashayeadetomiwa77@gmail.com'
       sshKeySecureFile: 'id_rsa'
 
-  # 2. Prepare the Vault Password file
-  # Ansible needs a physical file or an env var to read the vault pass.
+  # 2. Prepare Vault Password
   - bash: |
       echo "$(ANSIBLE_VAULT_PASSWORD)" > .vault_pass
       chmod 600 .vault_pass
     displayName: 'Create Vault Password File'
 
-  # 3. Update Inventory (The Hand-off)
-  # Instead of hardcoding, we replace the IP in the inventory file dynamically.
+  # 3. Create dynamic Inventory
   - bash: |
       echo "[web]" > ansible/inventory.ini
       echo "$(VM_IP)" >> ansible/inventory.ini
       echo "" >> ansible/inventory.ini
       echo "[web:vars]" >> ansible/inventory.ini
       echo "ansible_user=ubuntu" >> ansible/inventory.ini
-      echo "ansible_ssh_private_key_file=$(Agent.TempDirectory)/id_rsa" >> ansible/inventory.ini
       echo "ansible_python_interpreter=/usr/bin/python3" >> ansible/inventory.ini
-    displayName: 'Dynamically Generate Inventory'
+    displayName: 'Generate Inventory'
 
-  # 4. Run Ansible Playbook
-  # We use --extra-vars to override the DB host from Terraform.
-
+  # 4. Run Ansible Playbook (THE FIX IS HERE)
   - bash: |
+      # A) Set strict permissions on the downloaded key (SSH requirement)
+      chmod 600 $(Agent.TempDirectory)/id_rsa
+      
+      # B) Set environment variable to ignore fingerprint prompts
       export ANSIBLE_HOST_KEY_CHECKING=False
+      
+      # C) Run playbook pointing DIRECTLY to the private key file
       ansible-playbook -i ansible/inventory.ini ansible/site.yml \
+        --private-key $(Agent.TempDirectory)/id_rsa \
         --vault-password-file .vault_pass \
         --extra-vars "db_host=$(DB_FQDN)"
     displayName: 'Run Ansible Playbook'
-
-  # - bash: |
-  #     export ANSIBLE_HOST_KEY_CHECKING=False
-  #     # Added ssh-add -l to check if key is loaded
-  #     ssh-add -l 
-  #     ansible-playbook -i ansible/inventory.ini ansible/site.yml \
-  #       -vvv \
-  #       --vault-password-file .vault_pass \
-  #       --extra-vars "db_host=$(DB_FQDN)"
-  #   displayName: 'Run Ansible Playbook (Debug Mode)'
     workingDirectory: $(System.DefaultWorkingDirectory)
 
   # 5. Cleanup
