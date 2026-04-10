@@ -41,17 +41,29 @@ jobs:
       echo "" >> ansible/inventory.ini
       echo "[web:vars]" >> ansible/inventory.ini
       echo "ansible_user=ubuntu" >> ansible/inventory.ini
+      echo "ansible_ssh_private_key_file=$(Agent.TempDirectory)/id_rsa" >> ansible/inventory.ini
       echo "ansible_python_interpreter=/usr/bin/python3" >> ansible/inventory.ini
     displayName: 'Dynamically Generate Inventory'
 
   # 4. Run Ansible Playbook
   # We use --extra-vars to override the DB host from Terraform.
+
   - bash: |
       export ANSIBLE_HOST_KEY_CHECKING=False
       ansible-playbook -i ansible/inventory.ini ansible/site.yml \
         --vault-password-file .vault_pass \
         --extra-vars "db_host=$(DB_FQDN)"
     displayName: 'Run Ansible Playbook'
+
+  # - bash: |
+  #     export ANSIBLE_HOST_KEY_CHECKING=False
+  #     # Added ssh-add -l to check if key is loaded
+  #     ssh-add -l 
+  #     ansible-playbook -i ansible/inventory.ini ansible/site.yml \
+  #       -vvv \
+  #       --vault-password-file .vault_pass \
+  #       --extra-vars "db_host=$(DB_FQDN)"
+  #   displayName: 'Run Ansible Playbook (Debug Mode)'
     workingDirectory: $(System.DefaultWorkingDirectory)
 
   # 5. Cleanup
