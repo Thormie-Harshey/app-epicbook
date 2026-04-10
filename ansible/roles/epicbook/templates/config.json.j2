@@ -1,0 +1,15 @@
+{
+  "development": {
+    "username": "{{ db_user }}",
+    "password": "{{ db_password }}",
+    "database": "{{ db_name }}",
+    "host": "{{ db_host }}",
+    "dialect": "mysql",
+    "dialectOptions": {
+      "ssl": {
+        "require": true,
+        "rejectUnauthorized": false
+      }
+    }
+  }
+}

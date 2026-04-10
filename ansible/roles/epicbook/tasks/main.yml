@@ -1,0 +1,90 @@
+---
+# tasks file for roles/epicbook
+- name: Clone EpicBook repository
+  git:
+    repo: "{{ app_repo }}"
+    dest: "{{ app_dest }}"
+    update: no
+
+- name: Install Node.js dependencies
+  npm:
+    path: "{{ app_dest }}"
+
+- name: Create DB config file
+  template:
+    src: config.json.j2
+    dest: "{{ app_dest }}/config/config.json"
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: '0644'
+
+- name: Check if database is already imported
+  mysql_query:
+    login_host: "{{ db_host }}"
+    login_user: "{{ db_user }}"
+    login_password: "{{ db_password }}"
+    login_db: "{{ db_name }}"
+    query: "SHOW TABLES LIKE 'Author'"
+  register: table_check
+
+- name: Import database schema
+  mysql_db:
+    login_host: "{{ db_host }}"
+    login_user: "{{ db_user }}"
+    login_password: "{{ db_password }}"
+    name: "{{ db_name }}"
+    state: import
+    target: "{{ app_dest }}/db/BuyTheBook_Schema.sql"
+    force: no
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+  when: table_check.rowcount[0] == 0
+
+- name: Import author seed data
+  mysql_db:
+    login_host: "{{ db_host }}"
+    login_user: "{{ db_user }}"
+    login_password: "{{ db_password }}"
+    name: "{{ db_name }}"
+    state: import
+    target: "{{ app_dest }}/db/author_seed.sql"
+  when: table_check.rowcount[0] == 0
+
+- name: Import books seed data
+  mysql_db:
+    login_host: "{{ db_host }}"
+    login_user: "{{ db_user }}"
+    login_password: "{{ db_password }}"
+    name: "{{ db_name }}"
+    state: import
+    target: "{{ app_dest }}/db/books_seed.sql"
+  when: table_check.rowcount[0] == 0
+
+- name: Install PM2 globally
+  npm:
+    name: pm2
+    global: yes
+
+- name: Check if app is already running in PM2
+  become_user: "{{ app_user }}"
+  shell: pm2 list | grep -w epicbook
+  args:
+    executable: /bin/bash
+  register: pm2_check
+  failed_when: false
+  changed_when: false
+
+- name: Start app with PM2
+  become_user: "{{ app_user }}"
+  shell: |
+    cd {{ app_dest }} && pm2 start server.js --name epicbook && pm2 save
+  args:
+    executable: /bin/bash
+  when: pm2_check.rc != 0
+
+- name: Enable PM2 startup on boot
+  shell: |
+    env PATH=$PATH:/usr/bin pm2 startup systemd -u {{ app_user }} --hp /home/{{ app_user }}
+  args:
+    executable: /bin/bash
+  changed_when: false

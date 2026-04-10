@@ -1,0 +1,61 @@
+trigger:
+- main
+
+pool:
+  # Using your configured self-hosted agent
+  name: 'epicbook-agent-pool' 
+
+variables:
+  # Link the secret group we created in Phase 1
+  - group: ansible-secrets
+  # These are the "Hand-off" variables from your Terraform output
+  - name: VM_IP
+    value: '20.164.218.227'
+  - name: DB_FQDN
+    value: 'bookstore.mysql.database.azure.com'
+
+jobs:
+- job: Deploy_EpicBook
+  displayName: 'Install and Deploy EpicBook via Ansible'
+  steps:
+
+  # 1. Install SSH Key from Secure Files
+  - task: InstallSSHKey@0
+    inputs:
+      knownHostsEntry: 'ignore' # For labs/dev, or use SSH-keyscan for production
+      sshPublicKey: 'id_rsa.pub'
+      sshKeySecureFile: 'id_rsa'
+
+  # 2. Prepare the Vault Password file
+  # Ansible needs a physical file or an env var to read the vault pass.
+  - bash: |
+      echo "$(ANSIBLE_VAULT_PASSWORD)" > .vault_pass
+      chmod 600 .vault_pass
+    displayName: 'Create Vault Password File'
+
+  # 3. Update Inventory (The Hand-off)
+  # Instead of hardcoding, we replace the IP in the inventory file dynamically.
+  - bash: |
+      echo "[web]" > ansible/inventory.ini
+      echo "$(VM_IP)" >> ansible/inventory.ini
+      echo "" >> ansible/inventory.ini
+      echo "[web:vars]" >> ansible/inventory.ini
+      echo "ansible_user=ubuntu" >> ansible/inventory.ini
+      echo "ansible_python_interpreter=/usr/bin/python3" >> ansible/inventory.ini
+    displayName: 'Dynamically Generate Inventory'
+
+  # 4. Run Ansible Playbook
+  # We use --extra-vars to override the DB host from Terraform.
+  - bash: |
+      export ANSIBLE_HOST_KEY_CHECKING=False
+      ansible-playbook -i ansible/inventory.ini ansible/site.yml \
+        --vault-password-file .vault_pass \
+        --extra-vars "db_host=$(DB_FQDN)"
+    displayName: 'Run Ansible Playbook'
+    workingDirectory: $(System.DefaultWorkingDirectory)
+
+  # 5. Cleanup
+  - bash: |
+      rm .vault_pass
+    displayName: 'Remove Vault Pass File'
+    condition: always()

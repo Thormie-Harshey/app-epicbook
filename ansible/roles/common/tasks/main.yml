@@ -1,0 +1,32 @@
+---
+- name: Update apt cache and upgrade packages
+  apt:
+    update_cache: yes
+    upgrade: dist
+
+- name: Install baseline packages
+  apt:
+    name:
+      - git
+      - curl
+      - unzip
+      - software-properties-common
+      - mysql-client
+      - nodejs
+      - npm
+      - python3-pymysql
+    state: present
+
+- name: Disable root login via SSH
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^PermitRootLogin'
+    line: 'PermitRootLogin no'
+  notify: Restart ssh
+
+- name: Disable password authentication
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^PasswordAuthentication'
+    line: 'PasswordAuthentication no'
+  notify: Restart ssh
