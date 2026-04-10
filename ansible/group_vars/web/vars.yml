@@ -8,7 +8,7 @@ nginx_site_name: "epicbook"
 app_port: 8080
 
 db_host: "bookstore.mysql.database.azure.com"
-db_user: "adminuser"
+db_user: "admin"
 db_name: "bookstore"
 db_password: "{{ vault_db_password }}"
 
