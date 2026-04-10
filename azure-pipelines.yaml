@@ -16,7 +16,7 @@ jobs:
   displayName: 'Install and Deploy EpicBook via Ansible'
   steps:
 
-  # 1. Install SSH Key from Secure Files
+  # 1. Download the SSH Key
   - task: InstallSSHKey@0
     inputs:
       knownHostsEntry: 'ignore'
@@ -39,17 +39,28 @@ jobs:
       echo "ansible_python_interpreter=/usr/bin/python3" >> ansible/inventory.ini
     displayName: 'Generate Inventory'
 
-  # 4. Run Ansible Playbook (THE FIX IS HERE)
+  # 4. Run Ansible Playbook (SMART SEARCH ENABLED)
   - bash: |
-      # A) Set strict permissions on the downloaded key (SSH requirement)
-      chmod 600 $(Agent.TempDirectory)/id_rsa
+      # A) Find where the key actually is (handles naming like id_rsa or is_rsa)
+      KEY_PATH=$(find $(Agent.TempDirectory) -name "*_rsa" | head -n 1)
       
-      # B) Set environment variable to ignore fingerprint prompts
+      if [ -z "$KEY_PATH" ]; then
+        echo "##[error]SSH Key not found in $(Agent.TempDirectory). Listing files for debug:"
+        ls -R $(Agent.TempDirectory)
+        exit 1
+      fi
+      
+      echo "Found key at: $KEY_PATH"
+      
+      # B) Set permissions
+      chmod 600 "$KEY_PATH"
+      
+      # C) Set environment variable
       export ANSIBLE_HOST_KEY_CHECKING=False
       
-      # C) Run playbook pointing DIRECTLY to the private key file
+      # D) Run playbook
       ansible-playbook -i ansible/inventory.ini ansible/site.yml \
-        --private-key $(Agent.TempDirectory)/id_rsa \
+        --private-key "$KEY_PATH" \
         --vault-password-file .vault_pass \
         --extra-vars "db_host=$(DB_FQDN)"
     displayName: 'Run Ansible Playbook'
