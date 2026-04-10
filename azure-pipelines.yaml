@@ -16,12 +16,11 @@ jobs:
   displayName: 'Install and Deploy EpicBook via Ansible'
   steps:
 
-  # 1. Download the SSH Key
-  - task: InstallSSHKey@0
+  # 1. DOWNLOAD THE KEY (Confirmed name: id_rsa)
+  - task: DownloadSecureFile@1
+    name: ssh_key
     inputs:
-      knownHostsEntry: 'ignore'
-      sshPublicKey: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCwTn6fZ+p+kdEhQWACbLAHzWJ/zQ6NlS8Id5d9sH1uLUkC8ZxcfeKIzyHbBqIi99n6i0jHqwnnvVcH+fWwdkj/072gWhrqINJB85Mp2adRxDTeOjaMapYgONdexCUVDIwZkJcASCkp/lDI9Ox30LK5wzIlAS0MgXiP/dmvEss3ay5pCnvxzwXaqyR7m+L7JSt26bjfZoPNlfncWZCgXJTpSv9EIhbimGNrJGN01JYRN2wlzS64MhMHOtwM7qcK793gWyuatUaKCyVd4V6aqZCLrV/NQCd8DbMJav4dP6HXtSD/sg6DIW4q/T8kuoKaVIjN06y2Zv6SUGU/ftV0UFLdfe4yUNIIu4FX/ZZZ4wANDPn5qvI9DHI4CMCW2oslZwIulz9cBMhPmLWqnO9Ll5nhQUYBjMYK6hyCQAPpqLpBn0gRnfG7xCxJK85NFL7fHjP1NUYWYW8tpcGvJ43XNmskddIRhYYwE91g8rCd6t4Zai4SbbWqIQXAKPKP/w36n8CyNiJFxEDD/guPRK3CGbcz427h8rmbGRvlFVQOWJbzbXxMQ3GsVdUmaxshysVJcCl1yD4OQkweaCILSuHxpx3W2R/s0MXm/Su6N9lrVBJTbSVKlLakgXWILkPlyJBrGHgQ0OhjK0HyA1QlCtV5wOTTcFU813eEnroIiuxzdIPh6w== ashayeadetomiwa77@gmail.com'
-      sshKeySecureFile: 'id_rsa'
+      secureFile: 'id_rsa'
 
   # 2. Prepare Vault Password
   - bash: |
@@ -39,26 +38,18 @@ jobs:
       echo "ansible_python_interpreter=/usr/bin/python3" >> ansible/inventory.ini
     displayName: 'Generate Inventory'
 
-  # 4. Run Ansible Playbook (SMART SEARCH ENABLED)
+  # 4. RUN ANSIBLE
   - bash: |
-      # A) Find where the key actually is (handles naming like id_rsa or is_rsa)
-      KEY_PATH=$(find $(Agent.TempDirectory) -name "*_rsa" | head -n 1)
+      # A) Get the path from the download task
+      KEY_PATH=$(ssh_key.secureFilePath)
       
-      if [ -z "$KEY_PATH" ]; then
-        echo "##[error]SSH Key not found in $(Agent.TempDirectory). Listing files for debug:"
-        ls -R $(Agent.TempDirectory)
-        exit 1
-      fi
-      
-      echo "Found key at: $KEY_PATH"
-      
-      # B) Set permissions
+      # B) Set permissions (Required by SSH)
       chmod 600 "$KEY_PATH"
       
-      # C) Set environment variable
+      # C) Disable fingerprint prompts
       export ANSIBLE_HOST_KEY_CHECKING=False
       
-      # D) Run playbook
+      # D) Run the playbook
       ansible-playbook -i ansible/inventory.ini ansible/site.yml \
         --private-key "$KEY_PATH" \
         --vault-password-file .vault_pass \
