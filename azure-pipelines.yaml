@@ -34,7 +34,7 @@ jobs:
       echo "$(VM_IP)" >> ansible/inventory.ini
       echo "" >> ansible/inventory.ini
       echo "[web:vars]" >> ansible/inventory.ini
-      echo "ansible_user=ubuntu" >> ansible/inventory.ini
+      echo "ansible_user=azureuser" >> ansible/inventory.ini
       echo "ansible_python_interpreter=/usr/bin/python3" >> ansible/inventory.ini
     displayName: 'Generate Inventory'
 
