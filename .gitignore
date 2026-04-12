@@ -1,1 +1,18 @@
+# Ansible retry files
+*.retry
+
+# Ansible Vault password files (CRITICAL)
 .vault_pass
+vault-password.txt
+
+# Python compiled files
+__pycache__/
+*.pyc
+
+# Local environment settings
+.env
+.venv/
+
+# OS specific files
+.DS_Store
+Thumbs.db
